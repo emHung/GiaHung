@@ -1,0 +1,192 @@
+.wrapper {
+  width: 100%;
+  max-width: 450px;
+  background: white;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.form-box {
+  width: 100%;
+  position: relative;
+  height: 500px;
+  overflow: hidden;
+}
+
+.input-group {
+  width: 100%;
+  position: absolute;
+  transition: all 0.5s ease;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(100px);
+}
+
+/* Form login */
+.input-group:first-of-type {
+  transform: translateY(0);
+}
+
+.input-group:first-of-type.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Form signup */
+.input-group:last-of-type {
+  transform: translateY(-100%);
+}
+
+.input-group:last-of-type.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.button-box {
+  width: 100%;
+  margin: 24px 0;
+  position: relative;
+  display: flex;
+  background: #f0f2f5;
+  border-radius: 100px;
+  padding: 4px;
+  z-index: 2;
+}
+
+.toggle-btn {
+  padding: 12px;
+  border-radius: 100px;
+  border: none;
+  outline: none;
+  position: relative;
+  cursor: pointer;
+  width: 50%;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.toggle-btn.active {
+  background: #0052cc;
+  color: white;
+}
+
+.toggle-btn:not(.active) {
+  background: transparent;
+  color: #666;
+}
+
+.input-field {
+  margin-bottom: 16px;
+  width: 100%;
+  opacity: 1;
+  visibility: visible;
+}
+
+.input-field input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 16px;
+  background: #f8f9fa;
+}
+
+.input-field input:focus {
+  border-color: #0052cc;
+  outline: none;
+  background: white;
+}
+
+.input-field input::placeholder {
+  color: #999;
+}
+
+.forgot-password {
+  text-align: right;
+  margin-bottom: 20px;
+}
+
+.forgot-password a {
+  color: #0052cc;
+  text-decoration: none;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: #0052cc;
+  color: white;
+  border: none;
+  border-radius: 100px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 24px;
+}
+
+.submit-btn:hover {
+  background: #0047cc;
+}
+
+.submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.register-link {
+  margin-top: 24px;
+  text-align: center;
+  color: #333;
+}
+
+.register-link button,
+.register-link a {
+  color: #0052cc;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* Background */
+.min-h-screen {
+  background: #0047CC !important;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;  
+  justify-content: center;
+}
+
+/* Error message styling */
+.text-red-500 {
+  color: #ef4444;
+  margin-bottom: 16px;
+}
+
+/* Thêm style cho form khi active */
+.input-group.active {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Thêm title cho form */
+.form-title {
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.login-page {
+  background: #0047CC !important;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;  
+  justify-content: center;
+}
