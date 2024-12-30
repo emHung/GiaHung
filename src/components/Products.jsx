@@ -1,14 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
-import SearchBar from './SearchBar';
+import { FaSearch } from 'react-icons/fa';
 
 const UNITS = [
   { value: 'Cái', label: 'Cái' },
   { value: 'Hộp', label: 'Hộp' },
   { value: 'Kg', label: 'Kg' },
   { value: 'Cặp', label: 'Cặp' },
+  { value: 'Con', label: 'Con' },
+  { value: 'Bịch', label: 'Bịch' },
+  { value: 'Cuộn', label: 'Cuộn' },
+  { value: 'Hũ', label: 'Hũ' },
+  { value: 'Bộ', label: 'Bộ' },
   { value: 'Cây', label: 'Cây' },
-  { value: 'Con', label: 'Con' }
+  { value: 'Túi', label: 'Túi' },
+  { value: 'Hủ', label: 'Hủ' },
+  { value: 'Sợi', label: 'Sợi' },
+  { value: 'Tấm', label: 'Tấm' },
+  { value: 'M', label: 'M' },
+  { value: 'Bóng', label: 'Bóng' },
+  { value: 'Lít', label: 'Lít' },
+  { value: 'Chai', label: 'Chai' },
+  { value: 'Thùng', label: 'Thùng' },
+  { value: 'Gói', label: 'Gói' }
 ];
 
 const Products = () => {
@@ -51,9 +65,12 @@ const Products = () => {
   const [selectedFileName, setSelectedFileName] = useState('');
   const [activeTab, setActiveTab] = useState('duplicates'); // 'duplicates' hoặc 'new'
   const [selectedProducts, setSelectedProducts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [totalFilteredProducts, setTotalFilteredProducts] = useState(0);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const checkUserRole = () => {
@@ -69,35 +86,53 @@ const Products = () => {
     fetchCategories();
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page = currentPage) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(
-        `https://backend-giahung.onrender.com/api/products?page=${currentPage}&limit=${productsPerPage}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+      const baseUrl = 'https://backend-giahung.onrender.com/api/products';
+      const url = searchTerm
+        ? `${baseUrl}/search?q=${encodeURIComponent(searchTerm)}&page=${page}&limit=${productsPerPage}`
+        : `${baseUrl}?page=${page}&limit=${productsPerPage}`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      );
+      });
+      
       const data = await response.json();
       
       if (data.status === 'success') {
         setProducts(data.data);
-        setTotalProducts(data.total); // Tổng số sản phẩm từ server
+        setFilteredProducts(data.data);
+        setTotalProducts(data.total);
+        setTotalFilteredProducts(searchTerm ? data.total : data.total);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
       toast.error('Không thể tải danh sách sản phẩm');
     } finally {
       setLoading(false);
+      setIsSearching(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
-  }, [currentPage]); // Thêm currentPage vào dependencies
+    const timer = setTimeout(() => {
+      fetchProducts(1); // Reset về trang 1 khi tìm kiếm
+      setCurrentPage(1);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Effect cho việc chuyển trang
+  useEffect(() => {
+    if (!isSearching) {
+      fetchProducts(currentPage);
+    }
+  }, [currentPage]);
 
   const fetchCategories = async () => {
     try {
@@ -516,7 +551,7 @@ const Products = () => {
 
   // Component phân trang
   const Pagination = () => {
-    const totalPages = Math.ceil(totalProducts / productsPerPage);
+    const totalPages = Math.ceil(totalFilteredProducts / productsPerPage);
     
     // Tạo mảng các số trang cần hiển thị
     const getPageNumbers = () => {
@@ -1074,7 +1109,7 @@ const Products = () => {
                       date: new Date().toISOString().split('T')[0]
                     });
                   }}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
                 >
                   Hủy
                 </button>
@@ -1377,35 +1412,25 @@ const Products = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">
-            Danh sách sản phẩm ({totalProducts})
+            Danh sách sản phẩm ({totalFilteredProducts})
           </h1>
-          {searchTerm && (
-            <p className="text-sm text-gray-500 mt-1">
-              Tìm thấy {getFilteredProducts().length} sản phẩm phù hợp
-            </p>
-          )}
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Tìm kiếm sản phẩm..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-80 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              >
-                ×
-              </button>
-            )}
+        <div className="flex items-center gap-4 justify-end flex-grow">
+          <div className="relative w-full" ref={searchRef}>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Tìm kiếm sản phẩm..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 pl-10 pr-4 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+              />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            </div>
           </div>
 
           {userRole === 'admin' && (
@@ -1457,13 +1482,13 @@ const Products = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
           <div className="mt-4 text-gray-600">Đang tải...</div>
         </div>
-      ) : getFilteredProducts().length === 0 ? (
+      ) : filteredProducts.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <div className="text-gray-500 text-lg">
             {searchTerm ? (
               <>
                 <div className="mb-2">🔍</div>
-                <div>Không tìm thấy sản phẩm nào phù hợp với "{searchTerm}"</div>
+                <div>Không tìm thấy sản phẩm nào cho "{searchTerm}"</div>
               </>
             ) : (
               <>
@@ -1485,8 +1510,8 @@ const Products = () => {
                         type="checkbox"
                         onChange={handleSelectAll}
                         checked={
-                          selectedProducts.length === getFilteredProducts().length &&
-                          getFilteredProducts().length > 0
+                          selectedProducts.length === filteredProducts.length &&
+                          filteredProducts.length > 0
                         }
                         className="rounded border-gray-300"
                       />
@@ -1521,7 +1546,7 @@ const Products = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {getFilteredProducts().map((product) => (
+                {filteredProducts.map((product) => (
                   <tr key={product._id} className="hover:bg-gray-50">
                     {userRole === 'admin' && (
                       <td className="px-6 py-4 whitespace-nowrap w-10">
@@ -1599,7 +1624,7 @@ const Products = () => {
       )}
 
       {/* Phân trang */}
-      {!loading && getFilteredProducts().length > 0 && <Pagination />}
+      {!loading && filteredProducts.length > 0 && <Pagination />}
 
       {/* Các modal */}
       {isImportExportModalOpen && <ImportExportModal />}

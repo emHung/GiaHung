@@ -30,6 +30,7 @@ const Settings = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [currentProduct, setCurrentProduct] = useState(null);
+  const [showDragDropModal, setShowDragDropModal] = useState(false);
 
   const handleExcelEdit = (e) => {
     const file = e.target.files[0];
@@ -88,8 +89,25 @@ const Settings = () => {
     }
   };
 
-  const handleConvertToJson = async (e) => {
-    const files = Array.from(e.target.files);
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+    );
+    
+    if (files.length === 0) {
+      toast.error('Vui lòng chỉ kéo file Excel (.xlsx, .xls)');
+      return;
+    }
+    
+    await handleFileConversion(files);
+  };
+
+  const handleFileConversion = async (files) => {
     if (files.length === 0) return;
 
     try {
@@ -102,14 +120,12 @@ const Settings = () => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        // Đọc dữ liệu từ Excel
         const rawData = XLSX.utils.sheet_to_json(worksheet, {
           header: 1,
           raw: false,
           defval: ''
         });
 
-        // Tìm vị trí của cột "Tên" và "Đơn giá"
         const headerRow = rawData.find(row => 
           row.some(cell => cell === 'Tên' || cell === 'Đơn giá' || cell === 'Đơn vị')
         );
@@ -123,7 +139,6 @@ const Settings = () => {
         const priceIndex = headerRow.findIndex(cell => cell === 'Đơn giá');
         const unitIndex = headerRow.findIndex(cell => cell === 'Đơn vị');
 
-        // Chuyển đổi dữ liệu sang định dạng JSON
         const jsonData = rawData
           .slice(rawData.indexOf(headerRow) + 1)
           .filter(row => row[nameIndex] && row[priceIndex])
@@ -131,7 +146,7 @@ const Settings = () => {
             name: row[nameIndex].trim(),
             price: parseFloat(row[priceIndex].replace(/[,.]/g, '')) || 0,
             unit: row[unitIndex]?.trim() || '',
-            sourceFile: file.name // Thêm tên file nguồn
+            sourceFile: file.name
           }));
 
         allJsonData.push(...jsonData);
@@ -139,12 +154,18 @@ const Settings = () => {
 
       setConvertedJson(allJsonData);
       setShowJsonModal(true);
+      setShowDragDropModal(false);
       toast.success(`Đã chuyển đổi ${files.length} file thành công`);
 
     } catch (error) {
       console.error('Error converting files:', error);
       toast.error('Lỗi khi chuyển đổi file');
     }
+  };
+
+  const handleConvertToJson = (e) => {
+    const files = Array.from(e.target.files);
+    handleFileConversion(files);
   };
 
   const downloadJson = () => {
@@ -338,6 +359,48 @@ const Settings = () => {
     </div>
   );
 
+  // Thêm component DragDropModal
+  const DragDropModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Chuyển đổi Excel sang JSON</h3>
+          <button
+            onClick={() => setShowDragDropModal(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+        >
+          <div className="space-y-4">
+            <div className="text-gray-600">
+              <p className="text-lg mb-2">Kéo và thả file Excel vào đây</p>
+              <p className="text-sm">hoặc</p>
+            </div>
+            
+            <label 
+              onClick={() => setShowDragDropModal(true)} 
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
+            >
+              <FaFileExcel className="mr-2" />
+              <span>Chọn File Excel</span>
+            </label>
+            
+            <p className="text-sm text-gray-500">
+              Chấp nhận các file .xlsx, .xls
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const spreadsheetSettings = {
     data: excelData || [],
     colHeaders: headers,
@@ -438,16 +501,12 @@ const Settings = () => {
                 Chọn file Excel để chuyển đổi thành JSON
               </label>
               <div className="flex items-center space-x-4">
-                <label className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer">
+                <label 
+                  onClick={() => setShowDragDropModal(true)} 
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
+                >
                   <FaFileExcel className="mr-2" />
                   <span>Chọn File Excel</span>
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleConvertToJson}
-                    multiple
-                    className="hidden"
-                  />
                 </label>
               </div>
             </div>
@@ -501,6 +560,7 @@ const Settings = () => {
         </div>
       </div>
 
+      {showDragDropModal && <DragDropModal />}
       {showJsonModal && <JsonPreviewModal />}
     </div>
   );
