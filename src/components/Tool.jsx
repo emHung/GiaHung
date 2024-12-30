@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 import './Tool.css';
@@ -25,6 +25,8 @@ const Tool = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const suggestionsRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [includeTax, setIncludeTax] = useState(true);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -53,8 +55,8 @@ const Tool = () => {
 
     setFileName(newFileName);
     setColumns(defaultColumns);
-    // Tạo 15 hàng trống mặc định
-    const initialRows = Array(15).fill(null).map(() => createEmptyRow(defaultColumns));
+    // Tạo 20 hàng trống mặc định
+    const initialRows = Array(20).fill(null).map(() => createEmptyRow(defaultColumns));
     setRows(initialRows);
     setShowNewFileModal(false);
     setNewFileName('');
@@ -265,18 +267,27 @@ const Tool = () => {
       // Tính toán tổng
       const totalAmount = filteredRows.reduce((sum, row) => sum + (Number(row['Thành tiền']) || 0), 0);
       const totalSummary = filteredRows.reduce((sum, row) => sum + (Number(row['Tổng']) || 0), 0);
-      const discount = totalAmount * 0.03;
-      const discountSummary = totalSummary * 0.03;
-      const finalTotal = totalAmount - discount;
-      const finalTotalSummary = totalSummary - discountSummary;
+      
+      if (includeTax) {
+        // Nếu có thuế, thêm đầy đủ các dòng tổng
+        const discount = totalAmount * 0.03;
+        const discountSummary = totalSummary * 0.03;
+        const finalTotal = totalAmount - discount;
+        const finalTotalSummary = totalSummary - discountSummary;
 
-      // Thêm dòng tổng
-      wsData.push(
-        Array(columns.length).fill(''), // Dòng trống
-        ['', '', 'Tổng tiền', '', '', '', totalAmount, totalSummary],
-        ['', '', 'Chiết khấu 3%', '', '', '', discount, discountSummary],
-        ['', '', 'Tổng', '', '', '', finalTotal, finalTotalSummary]
-      );
+        wsData.push(
+          Array(columns.length).fill(''), // Dòng trống
+          ['', '', 'Tổng tiền', '', '', '', totalAmount, totalSummary],
+          ['', '', 'Chiết khấu 3%', '', '', '', discount, discountSummary],
+          ['', '', 'Tổng', '', '', '', finalTotal, finalTotalSummary]
+        );
+      } else {
+        // Nếu không có thuế, chỉ thêm dòng tổng thành tiền
+        wsData.push(
+          Array(columns.length).fill(''), // Dòng trống
+          ['', '', 'Tổng thành tiền', '', '', '', totalAmount, totalSummary]
+        );
+      }
 
       // Tạo worksheet
       const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -342,17 +353,79 @@ const Tool = () => {
     }
   };
 
+  // Hàm debounce để trì hoãn việc gọi API
+  const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
+
+  // Hàm tìm kiếm được cải thiện
   const searchProducts = async (query) => {
+    if (!query.trim()) {
+      setSuggestions([]);
+      return;
+    }
+
     try {
-      const response = await axios.get(`https://backend-giahung.onrender.com/api/products?limit=9999`);
-      const filteredProducts = response.data.data.filter(product => 
-        product.name.toLowerCase().includes(query.toLowerCase())
-      );
-      setSuggestions(filteredProducts);
+      setIsLoading(true);
+      const response = await axios.get(
+        `https://backend-giahung.onrender.com/api/products/search`, {
+        params: {
+          q: query,
+          limit: 10 // Giới hạn kết quả để tăng tốc độ
+        }
+      });
+      
+      // Sắp xếp kết quả theo độ phù hợp
+      const sortedResults = response.data.data
+        .map(product => ({
+          ...product,
+          relevance: calculateRelevance(product.name, query)
+        }))
+        .sort((a, b) => b.relevance - a.relevance)
+        .slice(0, 10);
+
+      setSuggestions(sortedResults);
     } catch (error) {
       console.error('Error searching products:', error);
+      setSuggestions([]);
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Hàm tính độ phù hợp của kết quả
+  const calculateRelevance = (productName, query) => {
+    const name = productName.toLowerCase();
+    const searchTerm = query.toLowerCase();
+    
+    // Ưu tiên kết quả trùng khớp chính xác
+    if (name === searchTerm) return 100;
+    
+    // Ưu tiên kết quả bắt đầu bằng từ khóa
+    if (name.startsWith(searchTerm)) return 80;
+    
+    // Ưu tiên kết quả có chứa từ khóa như một từ độc lập
+    if (name.includes(` ${searchTerm} `)) return 60;
+    
+    // Ưu tiên kết quả có chứa từ khóa
+    if (name.includes(searchTerm)) return 40;
+    
+    return 0;
+  };
+
+  // Sử dụng debounce cho hàm tìm kiếm
+  const debouncedSearch = useCallback(
+    debounce((query) => searchProducts(query), 300),
+    []
+  );
 
   const handleSelectProduct = (product, rowIndex) => {
     const updatedRows = [...rows];
@@ -437,6 +510,15 @@ const Tool = () => {
             <button onClick={addNewColumn} className="control-btn">
               Add Column
             </button>
+            <div className="tax-control">
+              <input
+                type="checkbox"
+                id="taxCheckbox"
+                checked={includeTax}
+                onChange={(e) => setIncludeTax(e.target.checked)}
+              />
+              <label htmlFor="taxCheckbox">Tính thuế và chiết khấu</label>
+            </div>
             <button onClick={exportToExcel} className="export-btn">
               Export to Excel
             </button>
@@ -470,7 +552,7 @@ const Tool = () => {
                             }
                           }
                         }}
-                        className={`relative border border-gray-300 px-4 py-2
+                        className={`relative border border-gray-300 px-4 py-4
                           ${!row['Ngày'] && (column === 'STT' || column === 'Tổng') ? 'text-transparent' : ''}
                           ${['STT', 'Thành tiền', 'Tổng'].includes(column) ? 'bg-gray-50' : ''}
                           ${['Ngày', 'STT', 'Đơn vị', 'Số lượng', 'Đơn giá', 'Thành tiền', 'Tổng'].includes(column) ? 'text-center' : ''}
@@ -487,7 +569,7 @@ const Tool = () => {
                               onChange={(e) => {
                                 if (column === 'Tên') {
                                   setSearchTerm(e.target.value);
-                                  searchProducts(e.target.value);
+                                  debouncedSearch(e.target.value);
                                   setShowSuggestions(true);
                                 } else {
                                   const updatedRows = [...rows];
@@ -508,17 +590,23 @@ const Tool = () => {
                                 }
                               }}
                             />
-                            {column === 'Tên' && showSuggestions && suggestions.length > 0 && (
+                            {column === 'Tên' && showSuggestions && (
                               <div className="suggestions-container">
-                                {suggestions.map((product, index) => (
-                                  <div
-                                    key={index}
-                                    className="suggestion-item"
-                                    onClick={() => handleSelectProduct(product, rowIndex)}
-                                  >
-                                    {product.name}
-                                  </div>
-                                ))}
+                                {isLoading ? (
+                                  <div className="suggestion-item loading">Đang tìm kiếm...</div>
+                                ) : suggestions.length > 0 ? (
+                                  suggestions.map((product, index) => (
+                                    <div
+                                      key={index}
+                                      className="suggestion-item"
+                                      onClick={() => handleSelectProduct(product, rowIndex)}
+                                    >
+                                      {product.name}
+                                    </div>
+                                  ))
+                                ) : searchTerm && (
+                                  <div className="suggestion-item no-results">Không tìm thấy kết quả</div>
+                                )}
                               </div>
                             )}
                           </div>

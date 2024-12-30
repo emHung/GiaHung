@@ -188,4 +188,21 @@
 
 td {
   position: relative;
+}
+
+.tax-control {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
+.tax-control label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tax-control input[type="checkbox"] {
+  margin-right: 8px;
+  cursor: pointer;
 } 
