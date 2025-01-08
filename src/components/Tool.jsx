@@ -27,6 +27,7 @@ const Tool = () => {
   const suggestionsRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const [includeTax, setIncludeTax] = useState(true);
+  const [productUnits, setProductUnits] = useState({});
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -132,6 +133,59 @@ const Tool = () => {
 
     return total || '';
   };
+  const handleKeyDown = (e, rowIndex, columnIndex) => {
+    if (e.key === 'Tab' || e.key === 'Enter') {
+      e.preventDefault();
+      const nextCell = getNextCell(rowIndex, columnIndex, e.key, e.shiftKey);
+      if (nextCell) {
+        setEditingCell(nextCell);
+      }
+    }
+  };
+
+const getNextCell = (currentRow, currentCol, key, isShiftKey) => {
+  const editableCols = columns.filter(col => !['Ngày','STT','Tên','Đơn vị','Số lượng','Đơn giá','Thành tiền','Tổng'].includes(col));
+  const currentColIndex = editableCols.indexOf(columns[currentCol]);
+  
+  if (key === 'Tab') {
+    if (!isShiftKey) {
+      // Tab tiến
+      if (currentColIndex < editableCols.length - 1) {
+        // Di chuyển sang phải
+        const nextCol = columns.indexOf(editableCols[currentColIndex + 1]);
+        return { rowIndex: currentRow, column: columns[nextCol] };
+      } else if (currentRow < rows.length - 1) {
+        // Xuống dòng và về đầu
+        const firstEditableCol = columns.indexOf(editableCols[0]);
+        return { rowIndex: currentRow + 1, column: columns[firstEditableCol] };
+      }
+    } else {
+      // Tab lùi
+      if (currentColIndex > 0) {
+        // Di chuyển sang trái
+        const prevCol = columns.indexOf(editableCols[currentColIndex - 1]);
+        return { rowIndex: currentRow, column: columns[prevCol] };
+      } else if (currentRow > 0) {
+        // Lên dòng và về cuối
+        const lastEditableCol = columns.indexOf(editableCols[editableCols.length - 1]);
+        return { rowIndex: currentRow - 1, column: columns[lastEditableCol] };
+      }
+    }
+  } else if (key === 'Enter') {
+    if (!isShiftKey) {
+      // Enter xuống
+      if (currentRow < rows.length - 1) {
+    return { rowIndex: currentRow + 1, column: columns[currentCol] };
+  }
+    } else {
+  // Shift+Enter lên
+  if (currentRow > 0) {
+    return { rowIndex: currentRow - 1, column: columns[currentCol] };
+  }
+}
+}
+return null;
+};
 
   // Sửa lại hàm handleCellEdit
   const handleCellEdit = (rowIndex, columnName, value) => {
@@ -168,7 +222,7 @@ const Tool = () => {
     }
 
     setRows(updatedRows);
-    if (columnName !== 'Tên') {
+    if (columnName !== 'Tên' && columnName !== 'Ngày') {
       setEditingCell(null);
     }
   };
@@ -253,7 +307,7 @@ const Tool = () => {
 
       // Chuyển đổi dữ liệu sang định dạng phù hợp cho XLSX
       const wsData = [
-        ['Tên file'], // Dòng tiêu đề
+        ['Tên file', `${fileName || 'bang_du_lieu'}`], // Dòng tiêu đề
         [], // Dòng trống
         columns, // Header columns
       ];
@@ -342,7 +396,7 @@ const Tool = () => {
       ws['!rows'] = [{ hpt: 50 }];
 
       // Thêm worksheet vào workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Bảng dữ liệu');
+      XLSX.utils.book_append_sheet(wb, ws, `${fileName || 'bang_du_lieu'}`);
 
       // Xuất file
       XLSX.writeFile(wb, `${fileName || 'bang_du_lieu'}.xlsx`);
@@ -376,23 +430,27 @@ const Tool = () => {
     try {
       setIsLoading(true);
       const response = await axios.get(
-        `https://backend-giahung.onrender.com/api/products/search`, {
+        `https://backend-giahung.onrender.com/api/products/search/`, {
         params: {
           q: query,
-          limit: 10 // Giới hạn kết quả để tăng tốc độ
+          limit: 10
         }
       });
       
-      // Sắp xếp kết quả theo độ phù hợp
-      const sortedResults = response.data.data
-        .map(product => ({
-          ...product,
-          relevance: calculateRelevance(product.name, query)
-        }))
-        .sort((a, b) => b.relevance - a.relevance)
-        .slice(0, 10);
+      console.log('Search API Response:', response.data); // Log để debug
 
-      setSuggestions(sortedResults);
+      if (response.data && response.data.data) {
+        const sortedResults = response.data.data
+          .map(product => ({
+            ...product,
+            relevance: calculateRelevance(product.name, query)
+          }))
+          .sort((a, b) => b.relevance - a.relevance)
+          .slice(0, 10);
+
+        console.log('Processed results:', sortedResults); // Log để debug
+        setSuggestions(sortedResults);
+      }
     } catch (error) {
       console.error('Error searching products:', error);
       setSuggestions([]);
@@ -428,15 +486,19 @@ const Tool = () => {
   );
 
   const handleSelectProduct = (product, rowIndex) => {
+    console.log('Selected product:', product);
+    
     const updatedRows = [...rows];
     updatedRows[rowIndex]['Tên'] = product.name;
     updatedRows[rowIndex]['Đơn vị'] = product.unit;
     updatedRows[rowIndex]['Đơn giá'] = product.price;
     
-    // Tính thành tiền nếu có số lượng
     if (updatedRows[rowIndex]['Số lượng']) {
       const quantity = Number(updatedRows[rowIndex]['Số lượng']);
       updatedRows[rowIndex]['Thành tiền'] = quantity * product.price;
+    } else {
+      updatedRows[rowIndex]['Số lượng'] = '1';
+      updatedRows[rowIndex]['Thành tiền'] = product.price;
     }
 
     setRows(updatedRows);
@@ -453,6 +515,7 @@ const Tool = () => {
   };
 
   return (
+    
     <div className="tool-container">
       <h1>Excel Tool</h1>
 
@@ -482,6 +545,11 @@ const Tool = () => {
               onChange={(e) => setNewFileName(e.target.value)}
               placeholder="Enter file name (without extension)"
               className="file-name-input"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  createNewFile();
+                }
+              }}
             />
             <div className="modal-buttons">
               <button onClick={createNewFile} className="create-btn">

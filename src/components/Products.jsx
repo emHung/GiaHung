@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { FaSearch } from 'react-icons/fa';
+import * as XLSX from 'xlsx';
 
 const UNITS = [
   { value: 'Cái', label: 'Cái' },
@@ -22,7 +23,11 @@ const UNITS = [
   { value: 'Lít', label: 'Lít' },
   { value: 'Chai', label: 'Chai' },
   { value: 'Thùng', label: 'Thùng' },
-  { value: 'Gói', label: 'Gói' }
+  { value: 'Gói', label: 'Gói' },
+  { value: 'Lon', label: 'Lon' },
+  { value: 'Đôi', label: 'Đôi' },
+  { value: 'G', label: 'G' },
+  { value: 'Gam', label: 'Gam' },
 ];
 
 const Products = () => {
@@ -54,7 +59,7 @@ const Products = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
   const [importExportMode, setImportExportMode] = useState('');
-  const [jsonFile, setJsonFile] = useState(null);
+  const [jsonFiles, setJsonFiles] = useState([]);
   const [duplicateItems, setDuplicateItems] = useState([]);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [newProducts, setNewProducts] = useState([]);
@@ -71,6 +76,7 @@ const Products = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [totalFilteredProducts, setTotalFilteredProducts] = useState(0);
   const searchRef = useRef(null);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
 
   useEffect(() => {
     const checkUserRole = () => {
@@ -368,7 +374,7 @@ const Products = () => {
       if (data.status === 'success') {
         toast.success(`Đã import ${newProducts.length} sản phẩm thành công`);
         setIsImportExportModalOpen(false);
-        setJsonFile(null);
+        setJsonFiles([]);
         setNewProducts([]);
         setDuplicateItems([]);
         fetchProducts(); // Tải lại danh sách sản phẩm
@@ -1236,56 +1242,78 @@ const Products = () => {
             </button>
           </div>
 
-          {!jsonFile ? (
+          {!jsonFiles.length ? (
             // Màn hình chọn file
             <div className="text-center py-12">
               <input
                 type="file"
-                accept=".json"
+                accept=".xlsx,.xls"
+                multiple
                 onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    handleFileSelect(file);
+                  if (e.target.files?.length > 0) {
+                    handleFileSelect(e.target.files);
                   }
                 }}
                 className="hidden"
-                id="jsonFileInput"
+                id="excelFileInput"
               />
               <label
-                htmlFor="jsonFileInput"
+                htmlFor="excelFileInput"
                 className="px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 inline-block"
               >
-                <div className="text-gray-600">Click để chọn file JSON</div>
+                <div className="text-gray-600">Click để chọn file Excel</div>
                 <div className="text-sm text-gray-500 mt-1">hoặc kéo thả file vào đây</div>
+                <div className="text-sm text-blue-500 mt-1">Có thể chọn nhiều file</div>
+                <div className="text-xs text-gray-500 mt-2">Định dạng: .xlsx, .xls</div>
+                <div className="text-xs text-gray-500">Cột bắt buộc: Tên, Đơn giá</div>
               </label>
             </div>
           ) : (
             <div className="max-h-[80vh] flex flex-col">
-              <div className="border-b border-gray-200">
-                <nav className="flex space-x-4" aria-label="Tabs">
-                  <button
-                    onClick={() => setActiveTab('new')}
-                    className={`px-3 py-2 text-sm font-medium ${
-                      activeTab === 'new'
-                        ? 'border-b-2 border-blue-500 text-blue-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Sản phẩm mới ({newProducts.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('duplicates')}
-                    className={`px-3 py-2 text-sm font-medium ${
-                      activeTab === 'duplicates'
-                        ? 'border-b-2 border-blue-500 text-blue-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Sản phẩm trùng ({duplicateItems.length})
-                  </button>
-                </nav>
+              <div className="mb-4 px-4 py-2 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Đang xử lý file {currentFileIndex + 1}/{jsonFiles.length}: {jsonFiles[currentFileIndex].name}
+                  </div>
+                  {jsonFiles.length > 1 && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          if (currentFileIndex > 0) {
+                            const newIndex = currentFileIndex - 1;
+                            setCurrentFileIndex(newIndex);
+                            // Xử lý file mới
+                            const fileContent = await jsonFiles[newIndex].text();
+                            const jsonData = JSON.parse(fileContent);
+                            // ... logic phân loại sản phẩm
+                          }
+                        }}
+                        disabled={currentFileIndex === 0}
+                        className="px-2 py-1 text-sm bg-gray-200 rounded disabled:opacity-50"
+                      >
+                        Trước
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (currentFileIndex < jsonFiles.length - 1) {
+                            const newIndex = currentFileIndex + 1;
+                            setCurrentFileIndex(newIndex);
+                            // Xử lý file mới
+                            const fileContent = await jsonFiles[newIndex].text();
+                            const jsonData = JSON.parse(fileContent);
+                            // ... logic phân loại sản phẩm
+                          }
+                        }}
+                        disabled={currentFileIndex === jsonFiles.length - 1}
+                        className="px-2 py-1 text-sm bg-gray-200 rounded disabled:opacity-50"
+                      >
+                        Sau
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-
+              
               <div className="flex-1 overflow-hidden">
                 <div className="overflow-y-auto h-full">
                   <table className="min-w-full divide-y divide-gray-200">
@@ -1338,7 +1366,8 @@ const Products = () => {
                   <div className="flex space-x-3">
                     <button
                       onClick={() => {
-                        setJsonFile(null);
+                        setJsonFiles([]);
+                        setCurrentFileIndex(0);
                         setNewProducts([]);
                         setDuplicateItems([]);
                       }}
@@ -1378,35 +1407,60 @@ const Products = () => {
     );
   };
 
-  const handleFileSelect = async (file) => {
+  const handleFileSelect = async (files) => {
     try {
-      const fileContent = await file.text();
-      const jsonData = JSON.parse(fileContent);
+      const fileArray = Array.from(files);
+      setJsonFiles(fileArray);
       
-      // Kiểm tra và phân loại sản phẩm
-      const duplicates = [];
-      const newItems = [];
-      
-      for (const item of jsonData) {
-        const isDuplicate = products.some(
-          existingProduct => existingProduct.name.toLowerCase() === item.name.toLowerCase()
-        );
+      // Xử lý file đầu tiên
+      if (fileArray.length > 0) {
+        const file = fileArray[0];
+        const reader = new FileReader();
         
-        if (isDuplicate) {
-          duplicates.push(item);
-        } else {
-          newItems.push(item);
-        }
+        reader.onload = (e) => {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          // Lấy sheet đầu tiên
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Chuyển đổi sang mảng JSON
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          // Chuẩn hóa dữ liệu
+          const normalizedData = jsonData.map(item => ({
+            name: item['Tên'] || item['tên'] || item['TÊN'] || item['Name'] || item['name'] || '',
+            price: Number(item['Đơn giá'] || item['đơn giá'] || item['ĐƠN GIÁ'] || item['Price'] || item['price'] || 0),
+            unit: 'Cái', // Đơn vị mặc định
+          })).filter(item => item.name && item.price > 0); // Lọc bỏ dữ liệu không hợp lệ
+          
+          // Kiểm tra và phân loại sản phẩm
+          const duplicates = [];
+          const newItems = [];
+          
+          for (const item of normalizedData) {
+            const isDuplicate = products.some(
+              existingProduct => existingProduct.name.toLowerCase() === item.name.toLowerCase()
+            );
+            
+            if (isDuplicate) {
+              duplicates.push(item);
+            } else {
+              newItems.push(item);
+            }
+          }
+          
+          setNewProducts(newItems);
+          setDuplicateItems(duplicates);
+          setActiveTab('new');
+        };
+        
+        reader.readAsArrayBuffer(file);
       }
-      
-      setJsonFile(file);
-      setNewProducts(newItems);
-      setDuplicateItems(duplicates);
-      setActiveTab('new');
-      
     } catch (error) {
       console.error('Error reading file:', error);
-      toast.error('File JSON không hợp lệ');
+      toast.error('File không hợp lệ');
     }
   };
 
